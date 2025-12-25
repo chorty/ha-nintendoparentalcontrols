@@ -11,6 +11,8 @@ __pycache__
 .vscode
 coverage.xml
 
+.env
+.venv
 
 # Home Assistant configuration
 config/*

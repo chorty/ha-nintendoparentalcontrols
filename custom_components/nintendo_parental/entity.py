@@ -9,7 +9,7 @@ from .const import DOMAIN
 from .coordinator import NintendoUpdateCoordinator
 
 
-class NintendoDevice(CoordinatorEntity):
+class NintendoDevice(CoordinatorEntity[NintendoUpdateCoordinator]):
     """A Nintendo device."""
 
     def __init__(
@@ -17,7 +17,6 @@ class NintendoDevice(CoordinatorEntity):
     ) -> None:
         """Initialize."""
         super().__init__(coordinator)
-        self.coordinator: NintendoUpdateCoordinator = coordinator
         self._device_id = device_id
         self._entity_id = entity_id
 
@@ -39,7 +38,17 @@ class NintendoDevice(CoordinatorEntity):
             manufacturer="Nintendo",
             name=self._device.name,
             entry_type=dr.DeviceEntryType.SERVICE,
-            sw_version=self._device.extra["device"]["firmwareVersion"][
+            sw_version=self._device.extra["firmwareVersion"][
                 "displayedVersion"
             ],
         )
+
+    async def async_added_to_hass(self) -> None:
+        """When entity is loaded."""
+        await super().async_added_to_hass()
+        self._device.add_device_callback(self.async_write_ha_state)
+
+    async def async_removed_from_hass(self) -> None:
+        """When entity is removed."""
+        self._device.remove_device_callback(self.async_write_ha_state)
+        await super().async_removed_from_hass()
