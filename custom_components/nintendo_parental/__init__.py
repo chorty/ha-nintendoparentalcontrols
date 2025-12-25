@@ -2,52 +2,45 @@
 from __future__ import annotations
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryError
 
-from pynintendoparental.exceptions import (
-    InvalidSessionTokenException,
-    InvalidOAuthConfigurationException,
-)
+from .coordinator import NintendoParentalConfigEntry
+from .repairs import raise_integration_deprecated
 
-from .const import DOMAIN, CONF_SESSION_TOKEN
-from .coordinator import NintendoUpdateCoordinator, Authenticator
-
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH, Platform.TIME, Platform.NUMBER]
-
-
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up this integration using UI."""
-    hass.data.setdefault(DOMAIN, {})
-    try:
-        nintendo_auth = await Authenticator.complete_login(
-            None, entry.data[CONF_SESSION_TOKEN], True
-        )
-    except InvalidSessionTokenException as err:
-        raise ConfigEntryAuthFailed(err) from err
-    except InvalidOAuthConfigurationException as err:
-        raise ConfigEntryError(err) from err
-
-    coord = NintendoUpdateCoordinator(hass, nintendo_auth, entry)
-    # request first data sync
-    await coord.async_request_refresh()
-    hass.data[DOMAIN][entry.entry_id] = coord
-
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
-
+async def async_setup_entry(
+    hass: HomeAssistant, entry: NintendoParentalConfigEntry
+) -> bool:
+    """Set up Nintendo Switch Parental Controls from a config entry."""
+    raise_integration_deprecated(hass, entry)
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Handle removal of an entry."""
-    if unloaded := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
-        hass.data[DOMAIN].pop(entry.entry_id)
-    return unloaded
+async def async_unload_entry(
+    hass: HomeAssistant, entry: NintendoParentalConfigEntry
+) -> bool:
+    """Unload a config entry."""
+    return True
 
-
-async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Reload config entry."""
-    await async_unload_entry(hass, entry)
-    await async_setup_entry(hass, entry)
+async def async_migrate_entry(
+    hass: HomeAssistant, entry: NintendoParentalConfigEntry
+) -> bool:
+    """Migrate old entry."""
+    if entry.version == 1:
+        new_entry = hass.config_entries.async_entry_for_domain_unique_id("nintendo_parental_controls", entry.unique_id)
+        if new_entry is None:
+            await hass.config_entries.async_add(
+                ConfigEntry(
+                    version=1,
+                    domain="nintendo_parental_controls",
+                    title=entry.title,
+                    data=entry.data,
+                    options=entry.options,
+                    source=entry.source,
+                    unique_id=entry.unique_id,
+                    discovery_keys=entry.discovery_keys,
+                    minor_version=entry.minor_version,
+                    subentries_data=entry.subentries,
+                )
+            )
+            hass.config_entries.async_update_entry(entry=entry, version=2)
+    return True
